@@ -22,12 +22,12 @@ def safe_load_image(local_path, github_url, caption):
 def load_all_models():
     # Google Drive file IDs for each model
     drive_links = {
-        "🌀 GRU (Fine-tuned)": "1iLV7JTUcMUPskJJbtbu5Y9hP0dYflRAn",
-        "🎨 Mini-VGG (Fine-tuned)": "1Ep4GjnmGXJGrwEY-uLF5m0LSBIBwkjUW",
-        "🧩 MLP (Fine-tuned)": "1bRGZJORSvcMTYwIUlkBCBQA50kptOnZP",
-        "🛠 ResNet-like (Fine-tuned)": "1B__-ApSUXav_8kprT0gjHFJBZBye-AVf",
-        "📘 CNN (Fine-tuned)": "14WRD1cuMby2bNvtloCfH6ACsvbQKeK1V",
-        "🏛 VGG-like (Fine-tuned)": "1B0Vb8BsR4mVhnGfuQqe05vHSkVK56H2g",
+        "🌀 GRU": "1iLV7JTUcMUPskJJbtbu5Y9hP0dYflRAn",
+        "🎨 Mini-VGG": "1Ep4GjnmGXJGrwEY-uLF5m0LSBIBwkjUW",
+        "🧩 MLP": "1bRGZJORSvcMTYwIUlkBCBQA50kptOnZP",
+        "🛠 ResNet-like": "1B__-ApSUXav_8kprT0gjHFJBZBye-AVf",
+        "📘 CNN": "14WRD1cuMby2bNvtloCfH6ACsvbQKeK1V",
+        "🏛 VGG-like": "1B0Vb8BsR4mVhnGfuQqe05vHSkVK56H2g",
     }
 
     models = {}
@@ -93,8 +93,8 @@ col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
 
 with col_left:
     safe_load_image(
-    "Consonant_Vowels.jpeg",
-    "https://raw.githubusercontent.com/Ruthikapgowda/Bridging-Linguistic-Gap-A-Deep-Learning-Approach-to-Tulu-Kannada-Translation/blob/main/Consonants_Vowels.jpeg",
+    "Consonant_Vowels.jpg",
+    "https://raw.githubusercontent.com/Ruthikapgowda/Bridging-Linguistic-Gap-A-Deep-Learning-Approach-to-Tulu-Kannada-Translation/blob/main/Consonants_Vowels.jpg",
     "📖 Consonants + Vowels"
 )
 
@@ -174,3 +174,4 @@ with col_right:
     "https://raw.githubusercontent.com/Ruthikapgowda/Bridging-Linguistic-Gap-A-Deep-Learning-Approach-to-Tulu-Kannada-Translation/blob/main/Conjunct_Characters.jpeg",
     "📖 Conjunct Characters"
 )
+
