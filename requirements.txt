@@ -1,0 +1,9 @@
+streamlit
+opencv-python
+opencv-python-headless
+numpy
+tensorflow
+requests
+gdown
+Pillow
+streamlit-drawable-canvas
