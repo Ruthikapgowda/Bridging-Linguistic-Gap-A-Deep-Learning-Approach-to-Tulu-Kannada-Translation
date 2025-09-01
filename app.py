@@ -10,6 +10,13 @@ from streamlit_drawable_canvas import st_canvas
 import gdown
 import os
 
+def safe_load_image(local_path, github_url, caption):
+    """Try local image first; if missing, load from GitHub raw URL."""
+    if os.path.exists(local_path):
+        st.image(local_path, caption=caption, use_container_width=True)
+    else:
+        st.image(github_url, caption=caption, use_container_width=True)
+
 # ---------------- Load Models + Mapping ----------------
 @st.cache_resource
 def load_all_models():
@@ -85,7 +92,11 @@ st.markdown("<p class='subtitle'>Choose a model and input method below 👇</p>"
 col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
 
 with col_left:
-    st.image("Consonant_Vowels.jpg", caption="📖 Consonants + Vowels", use_container_width=True)
+    safe_load_image(
+    "Consonants_Vowels.jpg",
+    "https://raw.githubusercontent.com/Ruthikapgowda/Bridging-Linguistic-Gap-A-Deep-Learning-Approach-to-Tulu-Kannada-Translation/main/Consonants_Vowels.jpg",
+    "📖 Consonants + Vowels"
+)
 
 with col_center:
     selected_model_name = st.selectbox("🔍 Select Model for Prediction", list(all_models.keys()))
@@ -158,4 +169,9 @@ with col_center:
                 st.error(f"⚠ Could not process image from URL. Error: {e}")
 
 with col_right:
-    st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
+    safe_load_image(
+    "Conjunct_Characters.jpeg",
+    "https://raw.githubusercontent.com/Ruthikapgowda/Bridging-Linguistic-Gap-A-Deep-Learning-Approach-to-Tulu-Kannada-Translation/main/Conjunct_Characters.jpeg",
+    "📖 Conjunct Characters"
+)
+
