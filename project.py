@@ -40,39 +40,56 @@ def load_all_models():
 
 all_models, character_mapping, class_labels = load_all_models()
 
-# ---------------- Preprocessing ----------------
-def preprocess_image_array(img_array, img_size=(50, 50)):
-    if len(img_array.shape) == 3:
-        img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2GRAY)
-    img_array = cv2.resize(img_array, img_size)
-    img_array = img_array.astype("float32") / 255.0
-    img_array = np.expand_dims(img_array, axis=(0, -1))
-    return img_array
+# ---------------- Image Normalization ----------------
+def normalize_character_image(img):
+    if len(img.shape) == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-# ---------------- Prediction ----------------
-def predict_character(image_array, model):
-    img = preprocess_image_array(image_array)
-    preds = model.predict(img, verbose=0)[0]
-    idx = np.argmax(preds)
-    return character_mapping[class_labels[idx]], preds[idx] * 100
+    img = cv2.resize(img, (50, 50))
 
-# ---------------- Validation (IMPORTANT) ----------------
-def is_valid_character(image_array, model, threshold=0.65):
-    # Reject empty / blank images
-    if image_array is None or image_array.size == 0:
-        return False, 0.0
+    # Auto invert (handle white background)
+    if np.mean(img) > 127:
+        img = cv2.bitwise_not(img)
 
-    if np.mean(image_array) > 245:
-        return False, 0.0
+    return img
 
-    img = preprocess_image_array(image_array)
-    preds = model.predict(img, verbose=0)[0]
+
+# ---------------- Validation + Prediction ----------------
+def is_valid_tulu_character(img, model, confidence_threshold=0.60):
+    if img is None or img.size == 0:
+        return False, 0.0, None
+
+    img = normalize_character_image(img)
+
+    # Binary-like check
+    if len(np.unique(img)) > 80:
+        return False, 0.0, None
+
+    # Stroke density check
+    white_ratio = np.sum(img > 200) / img.size
+    if white_ratio < 0.01 or white_ratio > 0.65:
+        return False, 0.0, None
+
+    img_input = img.astype("float32") / 255.0
+    img_input = np.expand_dims(img_input, axis=(0, -1))
+
+    preds = model.predict(img_input, verbose=0)[0]
     confidence = np.max(preds)
 
-    if confidence < threshold:
-        return False, confidence * 100
+    if confidence < confidence_threshold:
+        return False, confidence * 100, None
 
-    return True, confidence * 100
+    return True, confidence * 100, img
+
+
+def predict_character(img, model):
+    img_input = img.astype("float32") / 255.0
+    img_input = np.expand_dims(img_input, axis=(0, -1))
+    preds = model.predict(img_input, verbose=0)[0]
+    index = np.argmax(preds)
+    folder = class_labels[index]
+    return character_mapping[folder]
+
 
 # ---------------- Streamlit UI ----------------
 st.set_page_config(layout="wide")
@@ -81,48 +98,40 @@ st.markdown("""
 <style>
 .title { text-align: center; font-size: 32px; color: #4CAF50; }
 .subtitle { text-align: center; font-size: 18px; color: #bbb; }
-.prediction-box { padding: 15px; border-radius: 12px; background: #e3f2fd;
-color: #0d47a1; font-size: 20px; margin-top: 10px; text-align: center; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='title'>🖋 Tulu → Kannada Character Recognition</h1>", unsafe_allow_html=True)
-st.markdown("<p class='subtitle'>Upload, Draw or Paste Image URL</p>", unsafe_allow_html=True)
+st.markdown("<p class='subtitle'>Robust validation for handwritten Tulu characters</p>", unsafe_allow_html=True)
 
 col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
 
 with col_left:
-    st.image("Consonants_Vowels.jpg", caption="📖 Consonants + Vowels", use_container_width=True)
+    st.image("Consonants_Vowels.jpg", caption="📖 Consonants & Vowels", use_container_width=True)
 
 with col_center:
-    selected_model_name = st.selectbox("🔍 Select Model", list(all_models.keys()))
-    selected_model = all_models[selected_model_name]
+    model_name = st.selectbox("Select Model", list(all_models.keys()))
+    model = all_models[model_name]
 
-    option = st.radio("✏ Input Method", ["📤 Upload Image", "✍ Draw Character", "🌐 Image Link"])
+    option = st.radio("Input Method", ["📤 Upload Image", "✍ Draw Character", "🌐 Image Link"])
 
-    # -------- Upload Image --------
+    # -------- Upload --------
     if option == "📤 Upload Image":
-        uploaded_file = st.file_uploader("Upload Tulu character image", type=["png", "jpg", "jpeg"])
-
-        if uploaded_file is not None:
-            img = cv2.imdecode(np.frombuffer(uploaded_file.read(), np.uint8), cv2.IMREAD_GRAYSCALE)
-            st.image(img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
+        file = st.file_uploader("Upload character image", type=["png", "jpg", "jpeg"])
+        if file:
+            img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_GRAYSCALE)
+            st.image(img, caption="Uploaded Image", channels="GRAY")
 
             if st.button("🚀 Predict"):
-                valid, conf = is_valid_character(img, selected_model)
+                valid, conf, processed = is_valid_tulu_character(img, model)
                 if not valid:
-                    st.error("❌ This image does not belong to the trained Tulu character set.")
+                    st.error("❌ This image does not match the trained Tulu character format.")
                 else:
-                    char, _ = predict_character(img, selected_model)
-                    st.markdown(
-                        f"<div class='prediction-box'>"
-                        f"Predicted Kannada Character: <b>{char}</b><br>"
-                        f"Confidence: <b>{conf:.2f}%</b>"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
+                    char = predict_character(processed, model)
+                    st.success(f"Predicted Kannada Character: {char}")
+                    st.info(f"Confidence: {conf:.2f}%")
 
-    # -------- Draw Character --------
+    # -------- Draw --------
     elif option == "✍ Draw Character":
         canvas = st_canvas(
             stroke_width=10,
@@ -130,57 +139,43 @@ with col_center:
             background_color="black",
             width=256,
             height=256,
-            drawing_mode="freedraw",
-            key="canvas",
+            drawing_mode="freedraw"
         )
 
         if canvas.image_data is not None:
             img = cv2.cvtColor(canvas.image_data.astype("uint8"), cv2.COLOR_RGBA2GRAY)
-            st.image(img, caption="Drawn Image", use_container_width=True, channels="GRAY")
+            st.image(img, caption="Drawn Image", channels="GRAY")
 
             if st.button("🚀 Predict"):
-                valid, conf = is_valid_character(img, selected_model)
+                valid, conf, processed = is_valid_tulu_character(img, model)
                 if not valid:
                     st.error("❌ Drawn image is not a valid Tulu character.")
                 else:
-                    char, _ = predict_character(img, selected_model)
-                    st.markdown(
-                        f"<div class='prediction-box'>"
-                        f"Predicted Kannada Character: <b>{char}</b><br>"
-                        f"Confidence: <b>{conf:.2f}%</b>"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
+                    char = predict_character(processed, model)
+                    st.success(f"Predicted Kannada Character: {char}")
+                    st.info(f"Confidence: {conf:.2f}%")
 
-    # -------- Image URL --------
-    elif option == "🌐 Image Link":
+    # -------- URL --------
+    else:
         url = st.text_input("Enter image URL")
-
         if url:
             try:
-                response = requests.get(url, timeout=5)
+                response = requests.get(url)
                 img = Image.open(BytesIO(response.content)).convert("RGB")
                 img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
-                img = cv2.bitwise_not(img)
-
-                st.image(img, caption="URL Image", use_container_width=True, channels="GRAY")
+                st.image(img, caption="URL Image", channels="GRAY")
 
                 if st.button("🚀 Predict"):
-                    valid, conf = is_valid_character(img, selected_model)
+                    valid, conf, processed = is_valid_tulu_character(img, model)
                     if not valid:
-                        st.error("❌ This URL image is not a valid Tulu character.")
+                        st.error("❌ URL image is not a valid Tulu character.")
                     else:
-                        char, _ = predict_character(img, selected_model)
-                        st.markdown(
-                            f"<div class='prediction-box'>"
-                            f"Predicted Kannada Character: <b>{char}</b><br>"
-                            f"Confidence: <b>{conf:.2f}%</b>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
+                        char = predict_character(processed, model)
+                        st.success(f"Predicted Kannada Character: {char}")
+                        st.info(f"Confidence: {conf:.2f}%")
 
-            except Exception:
-                st.error("⚠ Unable to process image from URL.")
+            except:
+                st.error("⚠ Unable to load image from URL.")
 
 with col_right:
     st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
