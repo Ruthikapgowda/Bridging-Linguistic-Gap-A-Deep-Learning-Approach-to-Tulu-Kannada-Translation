@@ -93,46 +93,18 @@ with col_center:
 
     option = st.radio("✏ Input Method:", ["📤 Upload Image", "✍ Draw Character", "🌐 Image Link"])
 
-# -------- Upload Image --------
-if option == "📤 Upload Image":
-    uploaded_file = st.file_uploader(
-        "Upload a character image (handwritten / printed character)",
-        type=["png", "jpg", "jpeg"]
-    )
-
-    if uploaded_file is not None:
-        try:
-            # Read bytes
+    # -------- Upload Image --------
+    if option == "📤 Upload Image":
+        uploaded_file = st.file_uploader("Upload a character image", type=["png", "jpg", "jpeg"])
+        if uploaded_file is not None:
             file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-
-            # Decode image
             img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-
-            # ❌ If decoding fails
-            if img is None:
-                raise ValueError("Invalid image file")
-
-            # ❌ If image is too small or blank
-            if img.size == 0 or np.mean(img) > 245:
-                raise ValueError("Image does not contain a valid character")
-
             st.image(img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
-
             if st.button("🚀 Predict from Uploaded Image"):
                 kannada_char, confidence = predict_character(img, selected_model)
-
-                st.markdown(
-                    f"<div class='prediction-box'>"
-                    f"Model: <b>{selected_model_name}</b><br>"
-                    f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-                    f"Confidence: <b>{confidence:.2f}%</b>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
-
-        except Exception:
-            st.error("❌ This is not the correct format of the image. Please upload a clear character image.")
-
+                st.markdown(f"<div class='prediction-box'>Model: <b>{selected_model_name}</b><br>"
+                            f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
+                            f"Confidence: <b>{confidence:.2f}%</b></div>", unsafe_allow_html=True)
 
     # -------- Draw Character --------
     elif option == "✍ Draw Character":
@@ -186,7 +158,4 @@ if option == "📤 Upload Image":
                 st.error(f"⚠ Could not process image from URL. Error: {e}")
 
 with col_right:
-
     st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
-
-
