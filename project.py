@@ -52,15 +52,40 @@ def preprocess_image_array(img_array, img_size=(50, 50)):
     return img_array
 
 # ---------------- Validation ----------------
-def is_valid_tulu_character(img):
-    img = cv2.resize(img, (50, 50))
-    _, binary = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+def is_valid_tulu_character(img, model):
+    """
+    Strong validation using image structure + model confidence
+    """
 
+    # ---- Resize & binarize ----
+    img_resized = cv2.resize(img, (50, 50))
+    _, binary = cv2.threshold(
+        img_resized, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    )
+
+    # ---- Foreground (ink) ratio ----
     foreground_ratio = np.sum(binary == 0) / binary.size
+    if foreground_ratio < 0.02 or foreground_ratio > 0.45:
+        return False, None
 
-    if foreground_ratio < 0.01 or foreground_ratio > 0.5:
-        return False
-    return True
+    # ---- Edge density (characters have strokes) ----
+    edges = cv2.Canny(binary, 50, 150)
+    edge_ratio = np.sum(edges > 0) / edges.size
+    if edge_ratio < 0.01:
+        return False, None
+
+    # ---- Model confidence & entropy ----
+    img_input = preprocess_image_array(img_resized)
+    preds = model.predict(img_input, verbose=0)[0]
+
+    confidence = np.max(preds)
+    entropy = -np.sum(preds * np.log(preds + 1e-9))
+
+    # Reject uncertain predictions
+    if confidence < 0.80 or entropy > 2.0:
+        return False, None
+
+    return True, confidence * 100
 
 # ---------------- Prediction ----------------
 def predict_character(image_array, model):
@@ -98,36 +123,22 @@ with col_center:
     option = st.radio("✏ Input Method:", ["📤 Upload Image", "✍ Draw Character", "🌐 Image Link"])
 
     # -------- Upload Image --------
-    if option == "📤 Upload Image":
-        uploaded_file = st.file_uploader("Upload a Tulu character image", type=["png", "jpg", "jpeg"])
+    if st.button("🚀 Predict from Uploaded Image"):
+    is_valid, confidence = is_valid_tulu_character(img, selected_model)
 
-        if uploaded_file is not None:
-            try:
-                file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-                img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
+    if not is_valid:
+        st.error("❌ This image does not belong to the Tulu character dataset.")
+    else:
+        kannada_char, _ = predict_character(img, selected_model)
 
-                if img is None:
-                    raise ValueError
-
-                st.image(img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
-
-                if st.button("🚀 Predict from Uploaded Image"):
-                    if not is_valid_tulu_character(img):
-                        st.error("❌ This image is not a valid Tulu character.")
-                    else:
-                        kannada_char, confidence = predict_character(img, selected_model)
-                        if confidence < 70:
-                            st.error("❌ Low confidence. Please upload a clearer character image.")
-                        else:
-                            st.markdown(
-                                f"<div class='prediction-box'>"
-                                f"Model: <b>{selected_model_name}</b><br>"
-                                f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-                                f"Confidence: <b>{confidence:.2f}%</b></div>",
-                                unsafe_allow_html=True,
-                            )
-            except Exception:
-                st.error("❌ Invalid image format.")
+        st.markdown(
+            f"<div class='prediction-box'>"
+            f"Model: <b>{selected_model_name}</b><br>"
+            f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
+            f"Confidence: <b>{confidence:.2f}%</b>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
     # -------- Draw Character --------
     elif option == "✍ Draw Character":
@@ -160,35 +171,23 @@ with col_center:
                     )
 
     # -------- Image URL --------
-    elif option == "🌐 Image Link":
-        img_url = st.text_input("Enter the image URL:")
+    if st.button("🚀 Predict from URL Image"):
+    is_valid, confidence = is_valid_tulu_character(inverted, selected_model)
 
-        if img_url:
-            try:
-                response = requests.get(img_url, timeout=5)
-                img = Image.open(BytesIO(response.content)).convert("RGB")
-                gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
-                inverted = cv2.bitwise_not(gray)
+    if not is_valid:
+        st.error("❌ This image does not belong to the Tulu character dataset.")
+    else:
+        kannada_char, _ = predict_character(inverted, selected_model)
 
-                st.image(inverted, caption="Image from URL", use_container_width=True, channels="GRAY")
-
-                if st.button("🚀 Predict from URL Image"):
-                    if not is_valid_tulu_character(inverted):
-                        st.error("❌ This image is not a valid Tulu character.")
-                    else:
-                        kannada_char, confidence = predict_character(inverted, selected_model)
-                        if confidence < 70:
-                            st.error("❌ Low confidence. Please provide a clearer image.")
-                        else:
-                            st.markdown(
-                                f"<div class='prediction-box'>"
-                                f"Model: <b>{selected_model_name}</b><br>"
-                                f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-                                f"Confidence: <b>{confidence:.2f}%</b></div>",
-                                unsafe_allow_html=True,
-                            )
-            except Exception:
-                st.error("❌ Unable to process image from URL.")
+        st.markdown(
+            f"<div class='prediction-box'>"
+            f"Model: <b>{selected_model_name}</b><br>"
+            f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
+            f"Confidence: <b>{confidence:.2f}%</b>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
 with col_right:
     st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
+
