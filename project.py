@@ -85,7 +85,7 @@ st.markdown("<p class='subtitle'>Choose a model and input method below 👇</p>"
 col_left, col_center, col_right = st.columns([1.5, 2, 1.5])
 
 with col_left:
-    st.image("Consonant_Vowels.jpg", caption="📖 Consonants + Vowels", use_container_width=True)
+    st.image("Consonants_Vowels.jpg", caption="📖 Consonants + Vowels", use_container_width=True)
 
 with col_center:
     selected_model_name = st.selectbox("🔍 Select Model for Prediction", list(all_models.keys()))
@@ -158,4 +158,5 @@ with col_center:
                 st.error(f"⚠ Could not process image from URL. Error: {e}")
 
 with col_right:
+
     st.image("Conjunct_Characters.jpg", caption="📖 Conjunct Characters", use_container_width=True)
