@@ -13,14 +13,13 @@ import os
 # ---------------- Load Models + Mapping ----------------
 @st.cache_resource
 def load_all_models():
-    # Google Drive file IDs for each model
     drive_links = {
-        "🌀 GRU": "1B0Vb8BsR4mVhnGfuQqe05vHSkVK56H2g",
-        "🎨 Mini-VGG": "14WRD1cuMby2bNvtloCfH6ACsvbQKeK1V",
-        "🧩 MLP": "1B__-ApSUXav_8kprT0gjHFJBZBye-AVf",
-        "🛠 ResNet-like": "1bRGZJORSvcMTYwIUlkBCBQA50kptOnZP",
-        "📘 CNN": "1Ep4GjnmGXJGrwEY-uLF5m0LSBIBwkjUW",
-        "🏛 VGG-like": "1iLV7JTUcMUPskJJbtbu5Y9hP0dYflRAn",
+        "GRU": "1B0Vb8BsR4mVhnGfuQqe05vHSkVK56H2g",
+        "Mini-VGG": "14WRD1cuMby2bNvtloCfH6ACsvbQKeK1V",
+        "MLP": "1B__-ApSUXav_8kprT0gjHFJBZBye-AVf",
+        "ResNet-like": "1bRGZJORSvcMTYwIUlkBCBQA50kptOnZP",
+        "CNN": "1Ep4GjnmGXJGrwEY-uLF5m0LSBIBwkjUW",
+        "VGG-like": "1iLV7JTUcMUPskJJbtbu5Y9hP0dYflRAn",
     }
 
     models = {}
@@ -28,29 +27,23 @@ def load_all_models():
 
     for name, file_id in drive_links.items():
         model_path = f"models/{name.replace(' ', '_').replace('(', '').replace(')', '')}.keras"
-        
         if not os.path.exists(model_path):
-            # Download model from Google Drive
             gdown.download(f"https://drive.google.com/uc?id={file_id}", model_path, quiet=False)
-        
         models[name] = tf.keras.models.load_model(model_path)
 
-    # Load Tulu → Kannada mapping
     with open("tulu_to_kannada_mapping.json", "r", encoding="utf-8") as f:
         mapping = json.load(f)
-    class_labels = list(mapping.keys())
 
+    class_labels = list(mapping.keys())
     return models, mapping, class_labels
+
 
 all_models, character_mapping, class_labels = load_all_models()
 
 # ---------------- Preprocessing ----------------
 def preprocess_image_array(img_array, img_size=(50, 50)):
-    """Preprocess: grayscale, resize, normalize"""
-    if len(img_array.shape) == 3 and img_array.shape[2] == 3:
+    if len(img_array.shape) == 3:
         img_array = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-    elif len(img_array.shape) == 3 and img_array.shape[2] == 4:
-        img_array = cv2.cvtColor(img_array, cv2.COLOR_RGBA2GRAY)
 
     img_array = cv2.resize(img_array, img_size)
     img_array = img_array.astype("float32") / 255.0
@@ -58,15 +51,26 @@ def preprocess_image_array(img_array, img_size=(50, 50)):
     img_array = np.expand_dims(img_array, axis=0)
     return img_array
 
-# ---------------- Prediction Function ----------------
+# ---------------- Validation ----------------
+def is_valid_tulu_character(img):
+    img = cv2.resize(img, (50, 50))
+    _, binary = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    foreground_ratio = np.sum(binary == 0) / binary.size
+
+    if foreground_ratio < 0.01 or foreground_ratio > 0.5:
+        return False
+    return True
+
+# ---------------- Prediction ----------------
 def predict_character(image_array, model):
     img = preprocess_image_array(image_array)
     preds = model.predict(img, verbose=0)[0]
     pred_index = np.argmax(preds)
-    predicted_folder = class_labels[pred_index]
-    kannada_char = character_mapping[predicted_folder]
-    confidence = preds[pred_index] * 100
-    return kannada_char, confidence
+    return (
+        character_mapping[class_labels[pred_index]],
+        preds[pred_index] * 100,
+    )
 
 # ---------------- Streamlit UI ----------------
 st.set_page_config(layout="wide")
@@ -95,20 +99,38 @@ with col_center:
 
     # -------- Upload Image --------
     if option == "📤 Upload Image":
-        uploaded_file = st.file_uploader("Upload a character image", type=["png", "jpg", "jpeg"])
+        uploaded_file = st.file_uploader("Upload a Tulu character image", type=["png", "jpg", "jpeg"])
+
         if uploaded_file is not None:
-            file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-            img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
-            st.image(img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
-            if st.button("🚀 Predict from Uploaded Image"):
-                kannada_char, confidence = predict_character(img, selected_model)
-                st.markdown(f"<div class='prediction-box'>Model: <b>{selected_model_name}</b><br>"
-                            f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-                            f"Confidence: <b>{confidence:.2f}%</b></div>", unsafe_allow_html=True)
+            try:
+                file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+                img = cv2.imdecode(file_bytes, cv2.IMREAD_GRAYSCALE)
+
+                if img is None:
+                    raise ValueError
+
+                st.image(img, caption="Uploaded Image", use_container_width=True, channels="GRAY")
+
+                if st.button("🚀 Predict from Uploaded Image"):
+                    if not is_valid_tulu_character(img):
+                        st.error("❌ This image is not a valid Tulu character.")
+                    else:
+                        kannada_char, confidence = predict_character(img, selected_model)
+                        if confidence < 70:
+                            st.error("❌ Low confidence. Please upload a clearer character image.")
+                        else:
+                            st.markdown(
+                                f"<div class='prediction-box'>"
+                                f"Model: <b>{selected_model_name}</b><br>"
+                                f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
+                                f"Confidence: <b>{confidence:.2f}%</b></div>",
+                                unsafe_allow_html=True,
+                            )
+            except Exception:
+                st.error("❌ Invalid image format.")
 
     # -------- Draw Character --------
     elif option == "✍ Draw Character":
-        st.write("🎨 Draw the character below (white pen on blackboard):")
         canvas_result = st_canvas(
             fill_color="black",
             stroke_width=10,
@@ -119,44 +141,54 @@ with col_center:
             drawing_mode="freedraw",
             key="canvas",
         )
+
         if canvas_result.image_data is not None:
             img = cv2.cvtColor(canvas_result.image_data.astype("uint8"), cv2.COLOR_RGBA2GRAY)
             st.image(img, caption="Drawn Image", use_container_width=True, channels="GRAY")
+
             if st.button("🚀 Predict from Drawing"):
-                kannada_char, confidence = predict_character(img, selected_model)
-                st.markdown(f"<div class='prediction-box'>Model: <b>{selected_model_name}</b><br>"
-                            f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-                            f"Confidence: <b>{confidence:.2f}%</b></div>", unsafe_allow_html=True)
+                if not is_valid_tulu_character(img):
+                    st.error("❌ Please draw a valid Tulu character.")
+                else:
+                    kannada_char, confidence = predict_character(img, selected_model)
+                    st.markdown(
+                        f"<div class='prediction-box'>"
+                        f"Model: <b>{selected_model_name}</b><br>"
+                        f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
+                        f"Confidence: <b>{confidence:.2f}%</b></div>",
+                        unsafe_allow_html=True,
+                    )
 
     # -------- Image URL --------
     elif option == "🌐 Image Link":
         img_url = st.text_input("Enter the image URL:")
+
         if img_url:
             try:
-                response = requests.get(img_url)
+                response = requests.get(img_url, timeout=5)
                 img = Image.open(BytesIO(response.content)).convert("RGB")
-                img = np.array(img)
-
-                # Convert to grayscale
-                if img.shape[2] == 4:  # RGBA
-                    gray = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
-                else:
-                    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-                gray = gray.astype("uint8")
+                gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
                 inverted = cv2.bitwise_not(gray)
 
-                st.image(inverted, caption="Inverted Image from URL", use_container_width=True, channels="GRAY")
+                st.image(inverted, caption="Image from URL", use_container_width=True, channels="GRAY")
 
                 if st.button("🚀 Predict from URL Image"):
-                    kannada_char, confidence = predict_character(inverted, selected_model)
-                    st.markdown(f"<div class='prediction-box'>Model: <b>{selected_model_name}</b><br>"
+                    if not is_valid_tulu_character(inverted):
+                        st.error("❌ This image is not a valid Tulu character.")
+                    else:
+                        kannada_char, confidence = predict_character(inverted, selected_model)
+                        if confidence < 70:
+                            st.error("❌ Low confidence. Please provide a clearer image.")
+                        else:
+                            st.markdown(
+                                f"<div class='prediction-box'>"
+                                f"Model: <b>{selected_model_name}</b><br>"
                                 f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-                                f"Confidence: <b>{confidence:.2f}%</b></div>", unsafe_allow_html=True)
-
-            except Exception as e:
-                st.error(f"⚠ Could not process image from URL. Error: {e}")
+                                f"Confidence: <b>{confidence:.2f}%</b></div>",
+                                unsafe_allow_html=True,
+                            )
+            except Exception:
+                st.error("❌ Unable to process image from URL.")
 
 with col_right:
     st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
-
