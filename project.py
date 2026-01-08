@@ -126,19 +126,19 @@ with col_center:
     if st.button("🚀 Predict from Uploaded Image"):
         is_valid, confidence = is_valid_tulu_character(img, selected_model)
 
-    if not is_valid:
-        st.error("❌ This image does not belong to the Tulu character dataset.")
-    else:
-        kannada_char, _ = predict_character(img, selected_model)
+        if not is_valid:
+            st.error("❌ This image does not belong to the Tulu character dataset.")
+        else:
+            kannada_char, _ = predict_character(img, selected_model)
 
-        st.markdown(
-            f"<div class='prediction-box'>"
-            f"Model: <b>{selected_model_name}</b><br>"
-            f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-            f"Confidence: <b>{confidence:.2f}%</b>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
+            st.markdown(
+                f"<div class='prediction-box'>"
+                f"Model: <b>{selected_model_name}</b><br>"
+                f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
+                f"Confidence: <b>{confidence:.2f}%</b>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
     # -------- Draw Character --------
     elif option == "✍ Draw Character":
@@ -172,23 +172,24 @@ with col_center:
 
     # -------- Image URL --------
     if st.button("🚀 Predict from URL Image"):
-    is_valid, confidence = is_valid_tulu_character(inverted, selected_model)
+        is_valid, confidence = is_valid_tulu_character(inverted, selected_model)
 
-    if not is_valid:
-        st.error("❌ This image does not belong to the Tulu character dataset.")
-    else:
-        kannada_char, _ = predict_character(inverted, selected_model)
+        if not is_valid:
+            st.error("❌ This image does not belong to the Tulu character dataset.")
+        else:
+            kannada_char, _ = predict_character(inverted, selected_model)
 
-        st.markdown(
-            f"<div class='prediction-box'>"
-            f"Model: <b>{selected_model_name}</b><br>"
-            f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
-            f"Confidence: <b>{confidence:.2f}%</b>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
+            st.markdown(
+                f"<div class='prediction-box'>"
+                f"Model: <b>{selected_model_name}</b><br>"
+                f"Predicted Kannada Character: <b>{kannada_char}</b><br>"
+                f"Confidence: <b>{confidence:.2f}%</b>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
 with col_right:
     st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
+
 
 
