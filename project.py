@@ -124,7 +124,7 @@ with col_center:
 
     # -------- Upload Image --------
     if st.button("🚀 Predict from Uploaded Image"):
-    is_valid, confidence = is_valid_tulu_character(img, selected_model)
+        is_valid, confidence = is_valid_tulu_character(img, selected_model)
 
     if not is_valid:
         st.error("❌ This image does not belong to the Tulu character dataset.")
@@ -190,4 +190,5 @@ with col_center:
 
 with col_right:
     st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
+
 
