@@ -159,4 +159,5 @@ with col_center:
 
 with col_right:
 
-    st.image("Conjunct_Characters.jpg", caption="📖 Conjunct Characters", use_container_width=True)
+    st.image("Conjunct_Characters.jpeg", caption="📖 Conjunct Characters", use_container_width=True)
+
